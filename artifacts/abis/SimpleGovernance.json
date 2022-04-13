@@ -1,0 +1,42 @@
+[
+    {
+        "data": [
+            {
+                "name": "governace_address",
+                "type": "felt"
+            }
+        ],
+        "keys": [],
+        "name": "set_governance_event",
+        "type": "event"
+    },
+    {
+        "inputs": [],
+        "name": "get_governance_address",
+        "outputs": [
+            {
+                "name": "governance_address",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "new_governance",
+                "type": "felt"
+            }
+        ],
+        "name": "change_governance",
+        "outputs": [],
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "accept_governance",
+        "outputs": [],
+        "type": "function"
+    }
+]
