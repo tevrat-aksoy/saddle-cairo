@@ -57,12 +57,31 @@ end
 func simple_governance_storage()->(governance_address):
 end
 
+@view
+func get_beneficiary_address{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    ) -> (beneficiary : felt):
+    let (beneficiary) = beneficiary_storage.read()
+    return (beneficiary)
+end
+@view
+func get_timestamp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    ) -> (timestamp : felt):
+    let (timestamp) = get_block_timestamp()
+    return (timestamp)
+end
+
+@view
+func get_simple_governance_address{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    ) -> (simple_governance : felt):
+    let (simple_governance) = simple_governance_storage.read()
+    return (simple_governance)
+end
 
 @constructor
 func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    governance_address:felt):
-    let (sender)= get_caller_address()
-     simple_governance_storage.write(governance_address)
+    account:felt,governance_address:felt):
+
+    simple_governance_storage.write(governance_address)
 
     return()
 
@@ -93,11 +112,11 @@ func initialize_vesting{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,range_c
     with_attr error_message("start_timestamp cannot be 0"):
         assert_not_zero(start_timestamp)
     end
-    with_attr error_message(" startTimestamp cannot be from the future"):
+    with_attr error_message("startTimestamp cannot be from the future"):
         assert_le(start_timestamp,block_timestamp)
     end
-    with_attr error_message("start_timestamp cannot be 0"):
-        assert_not_zero(start_timestamp)
+    with_attr error_message("duration cannot be 0"):
+        assert_not_zero(duration_in_seconds)
     end
     with_attr error_message("cliff is greater than duration"):
         assert_le(cliff_in_seconds,duration_in_seconds)

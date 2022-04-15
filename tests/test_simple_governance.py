@@ -18,6 +18,7 @@ async def simple_governance_factory():
         source="openzeppelin/account/Account.cairo",
         constructor_calldata=[signer.public_key],
     )
+    
     simple_governance = await starknet.deploy(
         source="tests/mocks/simple_governance.cairo",
         constructor_calldata=[account1.contract_address],
