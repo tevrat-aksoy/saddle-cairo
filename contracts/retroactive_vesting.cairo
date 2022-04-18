@@ -129,20 +129,20 @@ end
 func vested_amount_internal{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     total : felt, released : felt, start_timestamp : felt, duration_in_seconds : felt
 ) -> (not_released_amount : felt):
-    let block_timestamp = get_block_timestamp()
+    let (block_timestamp) = get_block_timestamp()
     let (time_check) = is_le(block_timestamp, start_timestamp)
-    if timecheck == 1:
+    if time_check == 1:
         return (0)
     end
 
-    let (elapsed_time) = block_timestamp - start_timestamp
+    let elapsed_time = block_timestamp - start_timestamp
 
     let (elapsed_time_check) = is_le(duration_in_seconds, elapsed_time)
     if elapsed_time == 1:
         return (total - released)
     else:
-        let (total_elapsed_mul) = total * elapsed_time
-        let (vested) = total_elapsed_mul / duration_in_seconds
+        let total_elapsed_mul = total * elapsed_time
+        let vested = total_elapsed_mul / duration_in_seconds
         let not_released_amount = vested - released
         return (not_released_amount)
     end

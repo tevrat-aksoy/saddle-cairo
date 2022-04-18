@@ -15,6 +15,7 @@ from starkware.starknet.common.syscalls import (
     get_block_number,
     get_block_timestamp,
 )
+from contracts.interfaces.IERC20_lp_token import IERC20_lp_token
 
 @event
 func AMPLIFICATION_UTIL_ramp_a_event(old_a:felt, new_a:felt, initial_time:felt, future_time:felt):
@@ -49,7 +50,8 @@ func SWAP_UTIL_add_liquidity(
     tokens_amount_len:felt, 
     tokens_amount:felt*,
     fees_len:felt, 
-    fees:felt*,invariant:felt, 
+    fees:felt*,
+    invariant:felt, 
     lp_token_supply:felt):
 end
 @event
@@ -75,7 +77,8 @@ func SWAP_UTIL_remove_liquidity_imbalance(
     tokens_amount_len:felt, 
     tokens_amount:felt*,
     fees_len:felt, 
-    fees:felt*,invariant:felt, 
+    fees:felt*,
+    invariant:felt, 
     lp_token_supply:felt):
 end
 @event
@@ -94,8 +97,11 @@ struct SWAP_UTIL_swap:
     member swap_fee:felt
     member admin_fee:felt
     member lp_token_address:felt
+    member pooled_tokens_len:felt
     member pooled_tokens:felt*
+    member token_precision_with_multiplier_len:felt
     member token_precision_with_multiplier:felt*
+    member balances_len:felt
     member balances:felt*
 end
 
@@ -109,9 +115,14 @@ end
 struct SWAP_UTIL_manage_liqudity_info:
     member d0:felt
     member d1:felt
-    member new_y:felt
-    member fee_pert_token:felt
+    member d2:felt
     member precise_a:felt
+    member lp_token_address:felt
+    member total_supply:Uint256
+    member balances_len:felt
+    member balances:felt*
+    member multipliers_len:felt
+    member multipliers:felt*
 end
 
 
@@ -249,28 +260,77 @@ func AMPLIFICATION_UTIL_stop_ramp_a{
 
     let (current_a)= AMPLIFICATION_UTIL_get_a_precise(self)
     #TODO check storage assignments
+
+
+
+    return()
 end
-
-
-
-
 
 
 
 func SWAP_UTIL_get_a_precise{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     self:SWAP_UTIL_swap )->(
     a_precise:felt):
-    let (a_precise)= AMPLIFICATION_UTIL_get_a(self)
+    let (a_precise)= AMPLIFICATION_UTIL_get_a_precise(self)
 
     return (a_precise)
 
 end
 
+
 func SWAP_UTIL_calculate_withdraw_one_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     self:SWAP_UTIL_swap, token_amount:Uint256, token_index:felt )->(
-    available_token_amount:Uint256):
+    dy:Uint256,dy_swap_fee:Uint256):
 
+    
+    let lp_token_address=self.lp_token_address
 
-   return(Uint256(0,0)) 
+    let (total_supply)=IERC20_lp_token.totalSupply(lp_token_address)
+
+    let (dy, new_y, current_y)=SWAP_UTIL_calculate_withdraw_one_token_dy(self, token_index,token_amount, total_supply)
+    #TODO check for math
+    let dy_swap_fee=((current_y-new_y)/self.token_precision_with_multiplier[token_index])-dy
+
+   return(dy,dy_swap_fee) 
 end
+
+
+func SWAP_UTIL_calculate_withdraw_one_token_dy{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    self:SWAP_UTIL_swap,token_index:felt, token_amount:Uint256, total_supply:Uint256 )->(
+    dy:Uint256,new_y:Uint256,xp:Uint256):
+
+    let (xp) = SWAP_UTIL_xp(self.balances, self.token_precision_with_multiplier)
+    with_attr error_message("token index out of range"):
+        assert_le(token_index,xp.lenght)
+    end
+   
+    #TODO 
+    let (precise_a)= SWAP_UTIL_get_a_precise(self)
+    
+     let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
+
+    return(Uint256(0,0),Uint256(0,0),Uint256(0,0))
+
+end
+
+
+func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+   self:SWAP_UTIL_swap)->(
+    xp:Uint256*):
+    let num_tokens= self.balances_len
+
+    with_attr error_message("balances must match multipliers"):
+        assert num_tokens=self.token_precision_with_multiplier
+
+    end
+    #TODO check for loops
+    return(Uint256(0,0))
+end
+
+
+
+
+
+
+
 

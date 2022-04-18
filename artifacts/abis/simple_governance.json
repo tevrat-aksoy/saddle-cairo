@@ -24,23 +24,6 @@
     },
     {
         "inputs": [],
-        "name": "get_pending_governance",
-        "outputs": [
-            {
-                "name": "pending_governance",
-                "type": "felt"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "name": "account",
-                "type": "felt"
-            }
-        ],
         "name": "constructor",
         "outputs": [],
         "type": "constructor"

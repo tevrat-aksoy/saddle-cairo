@@ -2,7 +2,7 @@
 %builtins pedersen range_check
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.math import assert_lt, assert_not_zero
+from starkware.cairo.common.math import assert_lt, assert_not_zero,assert_not_equal
 
 from starkware.starknet.common.syscalls import get_contract_address, get_caller_address
 

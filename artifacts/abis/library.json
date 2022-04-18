@@ -1,13 +1,1 @@
-[
-    {
-        "data": [
-            {
-                "name": "implementation",
-                "type": "felt"
-            }
-        ],
-        "keys": [],
-        "name": "Upgraded",
-        "type": "event"
-    }
-]
+[]

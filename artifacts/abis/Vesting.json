@@ -62,47 +62,7 @@
         "type": "event"
     },
     {
-        "inputs": [],
-        "name": "get_beneficiary_address",
-        "outputs": [
-            {
-                "name": "beneficiary",
-                "type": "felt"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "get_timestamp",
-        "outputs": [
-            {
-                "name": "timestamp",
-                "type": "felt"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
-        "inputs": [],
-        "name": "get_simple_governance_address",
-        "outputs": [
-            {
-                "name": "simple_governance",
-                "type": "felt"
-            }
-        ],
-        "stateMutability": "view",
-        "type": "function"
-    },
-    {
         "inputs": [
-            {
-                "name": "account",
-                "type": "felt"
-            },
             {
                 "name": "governance_address",
                 "type": "felt"
