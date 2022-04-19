@@ -44,28 +44,34 @@ func SWAP_UTIL_token_swap(
     bought_id:felt):
 end
 
+#instead of array in struct define 3 tokens
 @event
 func SWAP_UTIL_add_liquidity(
     provider:felt,
-    tokens_amount_len:felt, 
-    tokens_amount:felt*,
-    fees_len:felt, 
-    fees:felt*,
+    number_of_token:felt,
+    token1_amount:felt,
+    token2_amount:felt,
+    token3_amount:felt,
+    fee1:felt,
+    fee2:felt,
+    fee3:felt,
     invariant:felt, 
     lp_token_supply:felt):
 end
 @event
 func SWAP_UTIL_remove_liquidity(
     provider:felt,
-    tokens_amount_len:felt, 
-    tokens_amount:felt*, 
+    number_of_token:felt, 
+    tokens1_amount:felt,
+    tokens2_amount:felt,
+    tokens3_amount:felt,
     lp_token_supply:felt):
 end
 
 @event
 func SWAP_UTIL_remove_liquidity_one(
-    provider:felt,
-    lp_tokens_amount_len:felt,
+    provider_address:felt,
+    lp_tokens_amount:felt,
     lp_token_supply:felt,
     bought_id:felt, 
     tokens_bought:felt):
@@ -74,10 +80,13 @@ end
 @event
 func SWAP_UTIL_remove_liquidity_imbalance(
     provider:felt,
-    tokens_amount_len:felt, 
-    tokens_amount:felt*,
-    fees_len:felt, 
-    fees:felt*,
+    number_of_token:felt, 
+    token1_amount:felt,
+    token2_amount:felt,
+    token3_amount:felt,
+    fee1:felt,
+    fee2:felt,
+    fee3:felt,
     invariant:felt, 
     lp_token_supply:felt):
 end
@@ -89,6 +98,7 @@ end
 func SWAP_UTIL_new_swap_fee(new_swap_fee:felt):
 end
 
+#TODO arrays in struct
 struct SWAP_UTIL_swap:
     member initial_a:felt
     member future_a:felt
@@ -97,12 +107,16 @@ struct SWAP_UTIL_swap:
     member swap_fee:felt
     member admin_fee:felt
     member lp_token_address:felt
-    member pooled_tokens_len:felt
-    member pooled_tokens:felt*
-    member token_precision_with_multiplier_len:felt
-    member token_precision_with_multiplier:felt*
-    member balances_len:felt
-    member balances:felt*
+    member  number_of_token:felt
+    member token1_address:felt
+    member token2_address:felt
+    member token3_address:felt
+    member token1_precision_with_multiplier:felt
+    member token2_precision_with_multiplier:felt
+    member token3_precision_with_multiplier:felt
+    member token1_balance:Uint256
+    member token2_balance:Uint256
+    member token3_balance:Uint256
 end
 
 struct SWAP_UTIL_calculate_withdraw_token_dy_info:
@@ -118,11 +132,14 @@ struct SWAP_UTIL_manage_liqudity_info:
     member d2:felt
     member precise_a:felt
     member lp_token_address:felt
+    member  number_of_token:felt
     member total_supply:Uint256
-    member balances_len:felt
-    member balances:felt*
-    member multipliers_len:felt
-    member multipliers:felt*
+    member token1_balance:Uint256
+    member token2_balance:Uint256
+    member token3_balance:Uint256
+    member token1_multiplier:felt
+    member token2_multiplier:felt
+    member token3_multiplier:felt
 end
 
 
@@ -279,56 +296,86 @@ end
 
 
 func SWAP_UTIL_calculate_withdraw_one_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    self:SWAP_UTIL_swap, token_amount:Uint256, token_index:felt )->(
-    dy:Uint256,dy_swap_fee:Uint256):
-
-    
+    self:SWAP_UTIL_swap, token_amount:Uint256, token_index:felt,number_of_tokens:felt )->(
+    dy:felt,dy_swap_fee:felt):
+    alloc_locals
     let lp_token_address=self.lp_token_address
+
+    with_attr error_message("token index must be in range 0-2"):
+        assert_le(token_index,3)
+    end
 
     let (total_supply)=IERC20_lp_token.totalSupply(lp_token_address)
 
-    let (dy, new_y, current_y)=SWAP_UTIL_calculate_withdraw_one_token_dy(self, token_index,token_amount, total_supply)
+    let (dy, new_y, current_y)=SWAP_UTIL_calculate_withdraw_one_token_dy(self, token_index,token_amount, total_supply,number_of_tokens)
     #TODO check for math
-    let dy_swap_fee=((current_y-new_y)/self.token_precision_with_multiplier[token_index])-dy
+    if token_index==0:
+        local dy_swap_fee=((current_y-new_y)/self.token1_precision_with_multiplier)-dy
+        return(dy,dy_swap_fee) 
+    end
+    if token_index==1:
+        local dy_swap_fee=((current_y-new_y)/self.token2_precision_with_multiplier)-dy
+        return(dy,dy_swap_fee) 
+    
+    else:
+        local dy_swap_fee=((current_y-new_y)/self.token3_precision_with_multiplier)-dy
+        return(dy,dy_swap_fee) 
+    end
+   
 
-   return(dy,dy_swap_fee) 
 end
 
 
 func SWAP_UTIL_calculate_withdraw_one_token_dy{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    self:SWAP_UTIL_swap,token_index:felt, token_amount:Uint256, total_supply:Uint256 )->(
-    dy:Uint256,new_y:Uint256,xp:Uint256):
-
-    let (xp) = SWAP_UTIL_xp(self.balances, self.token_precision_with_multiplier)
-    with_attr error_message("token index out of range"):
-        assert_le(token_index,xp.lenght)
+    self:SWAP_UTIL_swap,token_index:felt, token_amount:Uint256, total_supply:Uint256 , number_of_tokens:felt)->(
+    dy:felt,new_y:felt,xp:felt):
+    alloc_locals
+    with_attr error_message("number_of_tokens must be in range 0-2"):
+        assert_le(number_of_tokens,3)
     end
-   
-    #TODO 
-    let (precise_a)= SWAP_UTIL_get_a_precise(self)
-    
-     let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
+    with_attr error_message("token index out of range"):
+        assert_le(number_of_tokens,number_of_tokens)
+    end 
 
-    return(Uint256(0,0),Uint256(0,0),Uint256(0,0))
+    let (xp1,xp2,xp3) = SWAP_UTIL_xp(self)
+    
+    #TODO 
+    let (local precise_a)= SWAP_UTIL_get_a_precise(self)
+    let (do)= SWAP_UTIL_get_d(xp1,xp2,xp3, precise_a, number_of_tokens )
+
+    #let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
+
+    return(0,0,0)
 
 end
 
 
 func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
    self:SWAP_UTIL_swap)->(
-    xp:Uint256*):
-    let num_tokens= self.balances_len
+    xp1:Uint256,xp2:Uint256, xp3:Uint256):
 
-    with_attr error_message("balances must match multipliers"):
-        assert num_tokens=self.token_precision_with_multiplier
+    
+    let xp1= uint256_mul(self.token1_balance,Uint256( self.token1_precision_with_multiplier,0))
+    let xp2= uint256_mul(self.token2_balance,Uint256( self.token2_precision_with_multiplier,0))
+    let xp3= uint256_mul(self.token3_balance,Uint256( self.token3_precision_with_multiplier,0))
 
-    end
-    #TODO check for loops
-    return(Uint256(0,0))
+    return(xp1, xp2,xp3)
 end
 
 
+func SWAP_UTIL_d{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    xp1:felt, xp2:felt, xp3:felt, a:felt, number_of_tokens:felt)->(
+    d:felt):
 
+    local s=xp1+xp2+xp3
+    if s==0:
+        return (0)
+    else:
+    #TODO check for loops
+    
+
+    return(xp1, xp2,xp3)
+end
 
 
 
