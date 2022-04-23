@@ -2,7 +2,7 @@
 %builtins pedersen range_check
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
-from starkware.cairo.common.math import assert_lt, assert_not_zero,assert_not_equal
+from starkware.cairo.common.math import assert_lt, assert_not_zero, assert_not_equal
 
 from starkware.starknet.common.syscalls import get_contract_address, get_caller_address
 
@@ -34,22 +34,21 @@ func only_governance{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 end
 
 @constructor
-func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    ):
-    let (caller)=get_caller_address()
+func constructor{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}():
+    let (caller) = get_caller_address()
     governance_storage.write(caller)
     set_governance_event.emit(caller)
-    return()
+    return ()
 end
 
 @external
 func change_governance{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    new_governance : felt):
-    
+    new_governance : felt
+):
     only_governance()
     let (governance_address) = governance_storage.read()
     with_attr error_message("Governance must be different from current one"):
-        assert_not_equal( governance_address, new_governance)
+        assert_not_equal(governance_address, new_governance)
     end
     with_attr error_message("Governance cannot be empty"):
         assert_not_zero(new_governance)
