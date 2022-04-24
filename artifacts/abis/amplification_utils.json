@@ -34,7 +34,7 @@
             }
         ],
         "keys": [],
-        "name": "AMPLIFICATION_UTIL_stomp_rump_A",
+        "name": "AMPLIFICATION_UTIL_stop_rump_a_event",
         "type": "event"
     },
     {
@@ -263,6 +263,18 @@
         "type": "function"
     },
     {
+        "inputs": [],
+        "name": "get_ramp_a",
+        "outputs": [
+            {
+                "name": "ramp_a",
+                "type": "felt"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
         "inputs": [
             {
                 "name": "initial_a_diff",
@@ -285,6 +297,94 @@
         "outputs": [
             {
                 "name": "a_precise",
+                "type": "felt"
+            }
+        ],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "initial_a_diff",
+                "type": "felt"
+            },
+            {
+                "name": "future_a_diff",
+                "type": "felt"
+            },
+            {
+                "name": "initial_a_time_diff",
+                "type": "felt"
+            },
+            {
+                "name": "future_a_time_diff",
+                "type": "felt"
+            }
+        ],
+        "name": "call_stop_ramp_a",
+        "outputs": [
+            {
+                "name": "out_init_a",
+                "type": "felt"
+            },
+            {
+                "name": "out_future_a",
+                "type": "felt"
+            },
+            {
+                "name": "out_init_a_time",
+                "type": "felt"
+            },
+            {
+                "name": "out_future_a_time",
+                "type": "felt"
+            }
+        ],
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "name": "initial_a",
+                "type": "felt"
+            },
+            {
+                "name": "future_a",
+                "type": "felt"
+            },
+            {
+                "name": "initial_a_time",
+                "type": "felt"
+            },
+            {
+                "name": "future_a_time",
+                "type": "felt"
+            },
+            {
+                "name": "new_future_a",
+                "type": "felt"
+            },
+            {
+                "name": "new_future_time",
+                "type": "felt"
+            }
+        ],
+        "name": "call_ramp_a",
+        "outputs": [
+            {
+                "name": "out_init_a",
+                "type": "felt"
+            },
+            {
+                "name": "out_future_a",
+                "type": "felt"
+            },
+            {
+                "name": "out_init_a_time",
+                "type": "felt"
+            },
+            {
+                "name": "out_future_a_time",
                 "type": "felt"
             }
         ],

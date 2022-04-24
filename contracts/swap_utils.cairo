@@ -26,7 +26,7 @@ from openzeppelin.security.safemath import (
 )
 
 from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.math import assert_le, unsigned_div_rem
+from starkware.cairo.common.math import assert_le,assert_lt, unsigned_div_rem
 
 from starkware.starknet.common.syscalls import get_block_number, get_block_timestamp
 from contracts.interfaces.IERC20_lp_token import IERC20_lp_token
@@ -37,12 +37,14 @@ func AMPLIFICATION_UTIL_ramp_a_event(
 ):
 end
 @event
-func AMPLIFICATION_UTIL_stomp_rump_A(current_a : felt, time : felt):
+func AMPLIFICATION_UTIL_stop_rump_a_event(current_a : felt, time : felt):
 end
 
 const AMPLIFICATION_UTIL_A_PRECISION = 100
 const AMPLIFICATION_UTIL_MAX_A = 10 ** 6
 const AMPLIFICATION_UTIL_MAX_A_CHANGE = 2
+
+
 const AMPLIFICATION_UTIL_MIN_RAMP_TIME = 14 * 24 * 60 * 60
 
 # TODO: check for felt-uint256values
@@ -202,8 +204,7 @@ func AMPLIFICATION_UTIL_get_a_precise{
 end
 
 func AMPLIFICATION_UTIL_ramp_a{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    self : SWAP_UTIL_swap, future_a : felt, future_time : felt
-):
+    self : SWAP_UTIL_swap, future_a : felt, future_time : felt)->(new_swap:SWAP_UTIL_swap):
     alloc_locals
 
     let (timestamp) = get_block_timestamp()
@@ -219,11 +220,11 @@ func AMPLIFICATION_UTIL_ramp_a{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
     end
 
     with_attr error_message("future_a must be > 0 and < MAX_A"):
-        assert_le(0, future_a)
+        assert_lt(0, future_a)
     end
 
     with_attr error_message("future_a must be > 0 and < MAX_A"):
-        assert_le(future_a, AMPLIFICATION_UTIL_MAX_A)
+        assert_lt(future_a, AMPLIFICATION_UTIL_MAX_A)
     end
     let (initial_a_precise) = AMPLIFICATION_UTIL_get_a_precise(self)
     tempvar future_a_precise = future_a * AMPLIFICATION_UTIL_A_PRECISION
@@ -239,35 +240,74 @@ func AMPLIFICATION_UTIL_ramp_a{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
         end
         tempvar range_check_ptr = range_check_ptr
     else:
-        with_attr error_message("futureA_ is too large"):
+        with_attr error_message("future_a is too large"):
             assert_le(future_a_precise, init_a_mul_max_a)
         end
         tempvar range_check_ptr = range_check_ptr
     end
 
     # TODO check assignments
-    self.initial_a = initial_a_precise
+    local new_swap: SWAP_UTIL_swap
+    new_swap.initial_a=initial_a_precise
+    new_swap.future_a=future_a_precise
+    new_swap.initial_a_time=timestamp
+    new_swap.future_a_time=future_time
+    new_swap.swap_fee=self.swap_fee
+    new_swap.admin_fee=self.admin_fee
+    new_swap.lp_token_address=self.lp_token_address
+    new_swap.number_of_token=self.number_of_token
+    new_swap.token1_address=self.token1_address
+    new_swap.token2_address=self.token2_address
+    new_swap.token3_address=self.token3_address
+    new_swap.token1_precision_with_multiplier=self.token1_precision_with_multiplier
+    new_swap.token2_precision_with_multiplier=self.token2_precision_with_multiplier
+    new_swap.token3_precision_with_multiplier=self.token3_precision_with_multiplier
+    new_swap.token1_balance=self.token1_balance
+    new_swap.token2_balance=self.token2_balance
+    new_swap.token3_balance=self.token3_balance
+    
 
     AMPLIFICATION_UTIL_ramp_a_event.emit(
         initial_a_precise, future_a_precise, timestamp, future_time
     )
 
-    return ()
+    return (new_swap)
 end
 
 func AMPLIFICATION_UTIL_stop_ramp_a{
     syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
-}(self : SWAP_UTIL_swap):
+}(self : SWAP_UTIL_swap)->(new_swap:SWAP_UTIL_swap):
     alloc_locals
     let (timestamp) = get_block_timestamp()
     with_attr error_message("ramp is already stopped"):
-        assert_le(timestamp, self.future_a_time)
+        assert_lt(timestamp, self.future_a_time)
     end
 
     let (current_a) = AMPLIFICATION_UTIL_get_a_precise(self)
     # TODO check storage assignments
+    local new_swap: SWAP_UTIL_swap
+    new_swap.initial_a=current_a
+    new_swap.future_a=current_a
+    new_swap.initial_a_time=timestamp
+    new_swap.future_a_time=timestamp
+    new_swap.swap_fee=self.swap_fee
+    new_swap.admin_fee=self.admin_fee
+    new_swap.lp_token_address=self.lp_token_address
+    new_swap.number_of_token=self.number_of_token
+    new_swap.token1_address=self.token1_address
+    new_swap.token2_address=self.token2_address
+    new_swap.token3_address=self.token3_address
+    new_swap.token1_precision_with_multiplier=self.token1_precision_with_multiplier
+    new_swap.token2_precision_with_multiplier=self.token2_precision_with_multiplier
+    new_swap.token3_precision_with_multiplier=self.token3_precision_with_multiplier
+    new_swap.token1_balance=self.token1_balance
+    new_swap.token2_balance=self.token2_balance
+    new_swap.token3_balance=self.token3_balance
 
-    return ()
+    AMPLIFICATION_UTIL_stop_rump_a_event.emit(current_a, timestamp)
+    return (new_swap)
+    
+    
 end
 
 func SWAP_UTIL_get_a_precise{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
