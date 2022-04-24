@@ -126,9 +126,9 @@ struct SWAP_UTIL_swap:
     member token1_precision_with_multiplier : felt
     member token2_precision_with_multiplier : felt
     member token3_precision_with_multiplier : felt
-    member token1_balance : Uint256
-    member token2_balance : Uint256
-    member token3_balance : Uint256
+    member token1_balance : felt
+    member token2_balance : felt
+    member token3_balance : felt
 end
 
 struct SWAP_UTIL_calculate_withdraw_token_dy_info:
@@ -189,12 +189,12 @@ func AMPLIFICATION_UTIL_get_a_precise{
         let (a_condition) = is_le(a0, a1)
         if a_condition == 1:
             # TODO check
-            let result1 = a0 + (a1 - a0) * (timestamp - t0) / (t1 - t0)
-            return (result1)
+            let (result1,_) = unsigned_div_rem ( (a1 - a0) * (timestamp - t0) , (t1 - t0))
+            return (a0+result1)
         else:
             # TODO check
-            let result2 = a0 - (a0 - a1) * (timestamp - t0) / (t1 - t0)
-            return (result2)
+            let (result2,_) =unsigned_div_rem( (a0 - a1) * (timestamp - t0) , (t1 - t0))
+            return (a0-result2)
         end
     else:
         return (a1)
@@ -347,13 +347,13 @@ func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     alloc_locals
 
     let (local xp1) = uint256_checked_mul(
-        self.token1_balance, Uint256(self.token1_precision_with_multiplier, 0)
+        Uint256( self.token1_balance,0), Uint256(self.token1_precision_with_multiplier, 0)
     )
     let (local xp2) = uint256_checked_mul(
-        self.token2_balance, Uint256(self.token2_precision_with_multiplier, 0)
+        Uint256( self.token2_balance,0), Uint256(self.token2_precision_with_multiplier, 0)
     )
     let (local xp3) = uint256_checked_mul(
-        self.token3_balance, Uint256(self.token3_precision_with_multiplier, 0)
+        Uint256( self.token3_balance,0), Uint256(self.token3_precision_with_multiplier, 0)
     )
 
     xp_array_storage.write(account, 0, xp1)
@@ -362,7 +362,7 @@ func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     return ()
 end
 
-# sum of balances in
+
 func SWAP_UTIL_get_d{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     a : felt, number_of_tokens : felt, account : felt
 ) -> (d : Uint256):
@@ -404,7 +404,6 @@ func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
 ) -> (new_d : Uint256, converge : felt):
     alloc_locals
     if length == 0:
-        # Start with sum=0.
         return (prev_d, 0)
     end
 
