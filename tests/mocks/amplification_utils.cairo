@@ -50,25 +50,9 @@ func define_swap_struct{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_
     )->(swap:SWAP_UTIL_swap):
     alloc_locals
 
-    let uint_zero=Uint256(0,0)
-    local new_swap:SWAP_UTIL_swap
-    new_swap.initial_a=initial_a
-    new_swap.future_a=future_a
-    new_swap.initial_a_time=initial_a_time
-    new_swap.future_a_time=future_a_time
-    new_swap.swap_fee=0
-    new_swap.admin_fee=0
-    new_swap.lp_token_address=0
-    new_swap.number_of_token=0
-    new_swap.token1_address=0
-    new_swap.token2_address=0
-    new_swap.token3_address=0
-    new_swap.token1_precision_with_multiplier=0
-    new_swap.token2_precision_with_multiplier=0
-    new_swap.token3_precision_with_multiplier=0
-    new_swap.token1_balance=0
-    new_swap.token2_balance=0
-    new_swap.token3_balance=0
+
+    let  new_swap:SWAP_UTIL_swap=SWAP_UTIL_swap(initial_a,future_a,initial_a_time,future_a_time,
+                0,0,0,0,0,0,0,0,0,0,Uint256(0, 0),Uint256(0, 0), Uint256(0, 0) )
 
     return (new_swap)
 

@@ -128,9 +128,9 @@ struct SWAP_UTIL_swap:
     member token1_precision_with_multiplier : felt
     member token2_precision_with_multiplier : felt
     member token3_precision_with_multiplier : felt
-    member token1_balance : felt
-    member token2_balance : felt
-    member token3_balance : felt
+    member token1_balance : Uint256
+    member token2_balance : Uint256
+    member token3_balance : Uint256
 end
 
 struct SWAP_UTIL_calculate_withdraw_token_dy_info:
@@ -247,26 +247,26 @@ func AMPLIFICATION_UTIL_ramp_a{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
     end
 
     # TODO check assignments
-    local new_swap: SWAP_UTIL_swap
-    new_swap.initial_a=initial_a_precise
-    new_swap.future_a=future_a_precise
-    new_swap.initial_a_time=timestamp
-    new_swap.future_a_time=future_time
-    new_swap.swap_fee=self.swap_fee
-    new_swap.admin_fee=self.admin_fee
-    new_swap.lp_token_address=self.lp_token_address
-    new_swap.number_of_token=self.number_of_token
-    new_swap.token1_address=self.token1_address
-    new_swap.token2_address=self.token2_address
-    new_swap.token3_address=self.token3_address
-    new_swap.token1_precision_with_multiplier=self.token1_precision_with_multiplier
-    new_swap.token2_precision_with_multiplier=self.token2_precision_with_multiplier
-    new_swap.token3_precision_with_multiplier=self.token3_precision_with_multiplier
-    new_swap.token1_balance=self.token1_balance
-    new_swap.token2_balance=self.token2_balance
-    new_swap.token3_balance=self.token3_balance
+  
+    let swap_fee=self.swap_fee
+    let admin_fee=self.admin_fee
+    let lp_token_address=self.lp_token_address
+    let number_of_token=self.number_of_token
+    let token1_address=self.token1_address
+    let token2_address=self.token2_address
+    let token3_address=self.token3_address
+    let token1_precision_with_multiplier=self.token1_precision_with_multiplier
+    let token2_precision_with_multiplier=self.token2_precision_with_multiplier
+    let token3_precision_with_multiplier=self.token3_precision_with_multiplier
+    let token1_balance=self.token1_balance
+    let token2_balance=self.token2_balance
+    let token3_balance=self.token3_balance
     
-
+    local new_swap:SWAP_UTIL_swap=SWAP_UTIL_swap(initial_a_precise,future_a_precise,timestamp,future_time,
+                swap_fee,admin_fee, lp_token_address, number_of_token , token1_address, token2_address,token3_address,
+                token1_precision_with_multiplier,token2_precision_with_multiplier, token3_precision_with_multiplier,
+                token1_balance, token2_balance,token3_balance  )
+                
     AMPLIFICATION_UTIL_ramp_a_event.emit(
         initial_a_precise, future_a_precise, timestamp, future_time
     )
@@ -285,24 +285,25 @@ func AMPLIFICATION_UTIL_stop_ramp_a{
 
     let (current_a) = AMPLIFICATION_UTIL_get_a_precise(self)
     # TODO check storage assignments
-    local new_swap: SWAP_UTIL_swap
-    new_swap.initial_a=current_a
-    new_swap.future_a=current_a
-    new_swap.initial_a_time=timestamp
-    new_swap.future_a_time=timestamp
-    new_swap.swap_fee=self.swap_fee
-    new_swap.admin_fee=self.admin_fee
-    new_swap.lp_token_address=self.lp_token_address
-    new_swap.number_of_token=self.number_of_token
-    new_swap.token1_address=self.token1_address
-    new_swap.token2_address=self.token2_address
-    new_swap.token3_address=self.token3_address
-    new_swap.token1_precision_with_multiplier=self.token1_precision_with_multiplier
-    new_swap.token2_precision_with_multiplier=self.token2_precision_with_multiplier
-    new_swap.token3_precision_with_multiplier=self.token3_precision_with_multiplier
-    new_swap.token1_balance=self.token1_balance
-    new_swap.token2_balance=self.token2_balance
-    new_swap.token3_balance=self.token3_balance
+
+    let swap_fee=self.swap_fee
+    let admin_fee=self.admin_fee
+    let lp_token_address=self.lp_token_address
+    let number_of_token=self.number_of_token
+    let token1_address=self.token1_address
+    let token2_address=self.token2_address
+    let token3_address=self.token3_address
+    let token1_precision_with_multiplier=self.token1_precision_with_multiplier
+    let token2_precision_with_multiplier=self.token2_precision_with_multiplier
+    let token3_precision_with_multiplier=self.token3_precision_with_multiplier
+    let token1_balance=self.token1_balance
+    let token2_balance=self.token2_balance
+    let token3_balance=self.token3_balance
+    
+    local new_swap:SWAP_UTIL_swap=SWAP_UTIL_swap(current_a,current_a,timestamp,timestamp,
+                swap_fee,admin_fee, lp_token_address, number_of_token , token1_address, token2_address,token3_address,
+                token1_precision_with_multiplier,token2_precision_with_multiplier, token3_precision_with_multiplier,
+                token1_balance, token2_balance,token3_balance  )
 
     AMPLIFICATION_UTIL_stop_rump_a_event.emit(current_a, timestamp)
     return (new_swap)
@@ -363,13 +364,21 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
         assert_le(number_of_tokens, 3)
     end
     with_attr error_message("token index out of range"):
-        assert_le(number_of_tokens, number_of_tokens)
+        assert_le(0, number_of_tokens)
     end
     let (account) = get_caller_address()
     SWAP_UTIL_xp(self, account)
 
     let (local precise_a) = SWAP_UTIL_get_a_precise(self)
-    let (do) = SWAP_UTIL_get_d(precise_a, number_of_tokens, account)
+    let (local d0) = SWAP_UTIL_get_d(precise_a, number_of_tokens, account)
+
+    #d1= d0- token_amount*d0/total_supply
+    let (amount_d0_mul)=uint256_checked_mul(token_amount,d0)
+    let (amount_total_div,_)=uint256_checked_div_rem(amount_d0_mul,total_supply)
+    let (d1)=uint256_checked_sub_lt(d0,amount_total_div)
+
+  
+    
 
     # let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
 
@@ -387,13 +396,13 @@ func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     alloc_locals
 
     let (local xp1) = uint256_checked_mul(
-        Uint256( self.token1_balance,0), Uint256(self.token1_precision_with_multiplier, 0)
+        self.token1_balance, Uint256(self.token1_precision_with_multiplier, 0)
     )
     let (local xp2) = uint256_checked_mul(
-        Uint256( self.token2_balance,0), Uint256(self.token2_precision_with_multiplier, 0)
+        self.token1_balance, Uint256(self.token2_precision_with_multiplier, 0)
     )
     let (local xp3) = uint256_checked_mul(
-        Uint256( self.token3_balance,0), Uint256(self.token3_precision_with_multiplier, 0)
+        self.token1_balance, Uint256(self.token3_precision_with_multiplier, 0)
     )
 
     xp_array_storage.write(account, 0, xp1)

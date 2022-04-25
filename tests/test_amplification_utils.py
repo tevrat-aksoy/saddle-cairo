@@ -242,7 +242,6 @@ async def test_stop_ramp_a(autil_factory):
         [10, 20, 10, 250],
     )
     tx4 = await amplification_util.get_a_precise().call()
-    print(tx4.result.a_precise)
 
     assert tx2.result.response[0] == tx4.result.a_precise
 
