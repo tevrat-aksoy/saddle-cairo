@@ -3,6 +3,7 @@
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin, SignatureBuiltin
 from starkware.starknet.common.syscalls import get_caller_address, get_contract_address
+from starkware.cairo.common.alloc import alloc
 from starkware.cairo.common.uint256 import (
     Uint256,
     uint256_add,
@@ -358,7 +359,7 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     token_amount : Uint256,
     total_supply : Uint256,
     number_of_tokens : felt,
-) -> (dy : felt, new_y : felt, xp : felt):
+) -> (dy : felt, new_y : felt, xp: felt):
     alloc_locals
     with_attr error_message("number_of_tokens must be in range 0-2"):
         assert_le(number_of_tokens, 3)
@@ -367,32 +368,38 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
         assert_le(0, number_of_tokens)
     end
     let (account) = get_caller_address()
-    SWAP_UTIL_xp(self, account)
+    
+    let (xp_len,xp_array)=SWAP_UTIL_xp(self)
 
     let (local precise_a) = SWAP_UTIL_get_a_precise(self)
-    let (local d0) = SWAP_UTIL_get_d(precise_a, number_of_tokens, account)
+    let (local d0) = SWAP_UTIL_get_d(precise_a, xp_len, xp_array)
 
     #d1= d0- token_amount*d0/total_supply
     let (amount_d0_mul)=uint256_checked_mul(token_amount,d0)
     let (amount_total_div,_)=uint256_checked_div_rem(amount_d0_mul,total_supply)
     let (d1)=uint256_checked_sub_lt(d0,amount_total_div)
-
-  
     
+    let scaled_token_amount=xp_array[token_index]
 
+    let (available_condition)= uint256_le(token_amount,scaled_token_amount)
+
+    with_attr error_message("withdraw exceeds available"):
+        assert available_condition=1
+    end
+    #TODO
+    #new_y=SWAP_UTIL_get_yd(precise_a,token_index,d1,account)
     # let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
 
     return (0, 0, 0)
 end
 
-@storage_var
-func xp_array_storage(account : felt, i : felt) -> (xp_result : Uint256):
-end
+#func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(precise_a : felt, token_index:felt, d:felt,account:felt):
+
 
 # multiplier adjusted balances
 func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    self : SWAP_UTIL_swap, account
-):
+    self : SWAP_UTIL_swap
+)->(xp_array_len:felt, xp_array:Uint256*):
     alloc_locals
 
     let (local xp1) = uint256_checked_mul(
@@ -404,22 +411,24 @@ func SWAP_UTIL_xp{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_
     let (local xp3) = uint256_checked_mul(
         self.token1_balance, Uint256(self.token3_precision_with_multiplier, 0)
     )
+    let (xp_array:Uint256*)=alloc()
+    assert xp_array[0]=xp1
+    assert xp_array[1]=xp2
+    assert xp_array[2]=xp3
+    let xp_array_len=3
 
-    xp_array_storage.write(account, 0, xp1)
-    xp_array_storage.write(account, 1, xp2)
-    xp_array_storage.write(account, 2, xp3)
-    return ()
+    return (xp_array_len,xp_array )
 end
 
 
 func SWAP_UTIL_get_d{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    a : felt, number_of_tokens : felt, account : felt
+    a : felt, xp_len : felt, xp : Uint256*
 ) -> (d : Uint256):
     alloc_locals
 
-    let (xp1) = xp_array_storage.read(account, 0)
-    let (xp2) = xp_array_storage.read(account, 1)
-    let (xp3) = xp_array_storage.read(account, 2)
+    let xp1= xp[0]
+    let xp2= xp[1]
+    let xp3= xp[2]
 
     let (local xp1_xp2_sum) = uint256_checked_add(xp1, xp2)
     let (local s) = uint256_checked_add(xp1_xp2_sum, xp3)
@@ -429,9 +438,9 @@ func SWAP_UTIL_get_d{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
         return (Uint256(0, 0))
     else:
         # TODO check for loops
-        local n_a = a * number_of_tokens
-        let (new_d, converges) = get_d_loop(
-            account, s, number_of_tokens, n_a, s, SWAP_UTIL_MAX_LOOP_LIMIT
+        local n_a = a * xp_len
+        
+        let (new_d, converges) = get_d_loop(s, xp_len,xp, n_a, s, SWAP_UTIL_MAX_LOOP_LIMIT
         )
 
         if converges == 1:
@@ -444,9 +453,9 @@ func SWAP_UTIL_get_d{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 end
 
 func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    account : felt,
     prev_d : Uint256,
-    number_of_tokens : felt,
+    xp_len : felt,
+    xp:Uint256*,
     n_a : felt,
     s : Uint256,
     length : felt,
@@ -456,14 +465,12 @@ func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
         return (prev_d, 0)
     end
 
-    let (current_d, prev_converge) = get_d_loop(
-        account, prev_d, number_of_tokens, n_a, s, length - 1
-    )
+    let (current_d, prev_converge) = get_d_loop(prev_d, xp_len,xp, n_a, s, length - 1)
 
     if prev_converge == 1:
         return (current_d, prev_converge)
     else:
-        let (dp) = get_dp_loop(account, current_d, number_of_tokens, number_of_tokens)
+        let (dp) = get_dp_loop( current_d, xp_len,xp, xp_len)
 
         # TODO check equation
         # d = ((n_a * s /100+ N * dp) * d) / ((a - 1) * d/100 + (N + 1) * p)
@@ -471,7 +478,7 @@ func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
         let (div1, _) = uint256_checked_div_rem(
             n_a_s_mul, Uint256(AMPLIFICATION_UTIL_A_PRECISION, 0)
         )
-        let (n_dp_mul) = uint256_checked_mul(dp, Uint256(number_of_tokens, 0))
+        let (n_dp_mul) = uint256_checked_mul(dp, Uint256(xp_len, 0))
         # ((n_a * s /100+ N * dp)
         let (add1) = uint256_checked_add(div1, n_dp_mul)
         let (mul1) = uint256_checked_mul(add1, current_d)
@@ -482,7 +489,7 @@ func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
         )
         let (mul2) = uint256_checked_mul(n_a_prec_sub, current_d)
         let (div2, _) = uint256_checked_div_rem(mul2, Uint256(AMPLIFICATION_UTIL_A_PRECISION, 0))
-        let (n_1_add) = uint256_checked_add(Uint256(number_of_tokens, 0), Uint256(1, 0))
+        let (n_1_add) = uint256_checked_add(Uint256(xp_len, 0), Uint256(1, 0))
         let (n_1_dp_mul) = uint256_checked_mul(n_1_add, dp)
         let (add2) = uint256_checked_add(div2, n_1_dp_mul)
         let (new_d, _) = uint256_checked_div_rem(mul1, add2)
@@ -508,17 +515,18 @@ func get_d_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_pt
 end
 
 func get_dp_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    account : felt, prev_d : Uint256, number_of_tokens : felt, token_length : felt
+     prev_d : Uint256, xp_len:felt,xp:Uint256*, token_length : felt
 ) -> (new_dp : Uint256):
     alloc_locals
     if token_length == 0:
         return (prev_d)
     end
 
-    let (current_dp) = get_dp_loop(account, prev_d, number_of_tokens, token_length=token_length - 1)
+    let (current_dp) = get_dp_loop(prev_d, xp_len,xp, token_length=token_length - 1)
 
-    let (local current_xp) = xp_array_storage.read(account, token_length - 1)
-    let (xp_mul_tokens) = uint256_checked_mul( current_xp , Uint256(number_of_tokens,0))
+     local current_xp:Uint256 = xp[token_length-1]
+
+    let (xp_mul_tokens) = uint256_checked_mul( current_xp , Uint256(xp_len,0))
     let(dp_d_mul)=uint256_checked_mul(current_dp, prev_d)
     let (new_dp, _) = uint256_checked_div_rem(dp_d_mul,xp_mul_tokens )
 
