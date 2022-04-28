@@ -359,7 +359,7 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     token_amount : Uint256,
     total_supply : Uint256,
     number_of_tokens : felt,
-) -> (dy : felt, new_y : felt, xp: felt):
+) -> (dy : felt, new_y : felt, xp: Uint256):
     alloc_locals
     with_attr error_message("number_of_tokens must be in range 0-2"):
         assert_le(number_of_tokens, 3)
@@ -386,14 +386,112 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     with_attr error_message("withdraw exceeds available"):
         assert available_condition=1
     end
-    #TODO
-    #new_y=SWAP_UTIL_get_yd(precise_a,token_index,d1,account)
-    # let v=SWAP_UTIL_calculate_withdraw_token_dy_info(0,0,0,0)
+    
+    #TODO complete loop
 
-    return (0, 0, 0)
+    return (0, 0, Uint256(0,0))
 end
 
-#func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(precise_a : felt, token_index:felt, d:felt,account:felt):
+func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    precise_a : felt, token_index:felt,xp_len:felt,xp:Uint256*, d:Uint256)->(
+    new_y:Uint256):
+
+    with_attr error_message("token  notfound"):
+        assert_lt(token_index, 3)
+    end
+
+    let (n_a)=uint256_checked_mul(d,Uint256(xp_len,0))
+
+    let (c,s)=get_c_loop(d, xp_len, xp,token_index, d, xp_len)
+
+    let (c_d_mul)=uint256_checked_mul(c,d)
+    let (c_d_a_mul)=uint256_checked_mul(c_d_mul,Uint256( AMPLIFICATION_UTIL_A_PRECISION,0))
+    let n_a= precise_a*xp_len
+
+    let (new_c,_)=uint256_checked_div_rem(c_d_a_mul,Uint256(n_a*xp_len,0))
+
+    let (d_a_mul)=uint256_checked_mul(d, Uint256( AMPLIFICATION_UTIL_A_PRECISION,0))
+    let (d_a_mul_na_div,_)= uint256_checked_div_rem(d_a_mul,Uint256(n_a,0))
+    let (new_b)=uint256_checked_add(s,d_a_mul_na_div)
+    #TODO complete y loop
+
+    let (new_y, converge)= get_newy_loop(d,new_c,new_b ,d, AMPLIFICATION_UTIL_A_PRECISION)
+    
+    with_attr error_message("y not converge"):
+        assert converge=1
+    end
+
+   
+    return(new_y)
+
+end 
+
+func get_newy_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+     y:Uint256, c:Uint256,b:Uint256,d:Uint256, lenght : felt
+) -> (new_y : Uint256,converge:felt):
+    alloc_locals
+    if lenght==0:
+        return (y,0)
+    end
+
+    let (current_y,converge)=get_newy_loop(y,c,b,d,lenght=lenght-1)
+
+    if converge==1:
+        return (current_y,converge)
+    # y = (y * y + c) / (2 * y + b - d);
+    else:
+        let (y_y_mul)=uint256_checked_mul(y,current_y)
+        let (y_c_add)=uint256_checked_add(y_y_mul,c)
+        let (y_2_mul)= uint256_checked_mul(Uint256(2,0),y)
+        let (b_d_sub)=uint256_checked_sub_le(b,d)
+        let (y_bd_sum)=uint256_checked_add(y_2_mul,b_d_sub)
+        let (new_y)=uint256_checked_div_rem(y_c_add,y_bd_sum)
+
+        let (y_dif) = uint256_sub(new_y, current_y)
+        let (less_than_one) = uint256_le(y_dif, Uint256(1, 0))
+        let (neg_one) = uint256_neg(Uint256(1, 0))
+        let (less_than_neg_one) = uint256_le(neg_one, y_dif)
+
+        if less_than_one == 1:
+            local converge = 1
+            return (new_y, converge)
+        end
+        if less_than_neg_one == 1:
+            local converge = 1
+            return (new_y, converge)
+        else:
+            local converge = 0
+            return (new_y, converge)
+        end
+
+
+    end
+
+
+end
+
+func get_c_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+     c : Uint256, xp_len:felt,xp:Uint256*, token_index:felt, d:Uint256, lenght : felt
+) -> (new_c : Uint256,new_s:Uint256):
+    alloc_locals
+
+    if lenght==0:
+        return  (Uint256(1,0),Uint256(0,0))
+    end
+    let (current_c, current_s)= get_c_loop(c, xp_len, xp,token_index, d, lenght -1)
+
+    if token_index==lenght-1:
+        return (current_c, current_s)
+    else:
+        let (local new_s)=uint256_checked_add(current_s,xp[lenght-1])
+
+        let (xp_token_mul)=uint256_checked_mul(xp[lenght-1], Uint256(xp_len,0))
+        let (c_d_mul)=uint256_checked_mul(current_c,d)
+        let ( new_c,_)=uint256_checked_div_rem(c_d_mul, xp_token_mul)
+        return (new_c, new_s)
+    end
+end
+
 
 
 # multiplier adjusted balances
