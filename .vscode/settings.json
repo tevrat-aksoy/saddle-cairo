@@ -1,0 +1,5 @@
+
+{"editor.formatOnSave": true,
+    "editor.formatOnSaveTimeout": 1500,
+    "cairo.cairoFormatPath": "/home/tevrat/cairo_venv/bin/cairo-format",
+}

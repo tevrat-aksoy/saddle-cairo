@@ -359,7 +359,7 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     token_amount : Uint256,
     total_supply : Uint256,
     number_of_tokens : felt,
-) -> (dy : felt, new_y : felt, xp: Uint256):
+) -> (dy : felt, new_y : felt, xp_indexed: Uint256):
     alloc_locals
     with_attr error_message("number_of_tokens must be in range 0-2"):
         assert_le(number_of_tokens, 3)
@@ -369,28 +369,68 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     end
     let (account) = get_caller_address()
     
-    let (xp_len,xp_array)=SWAP_UTIL_xp(self)
+    let (xp_len,xp)=SWAP_UTIL_xp(self)
 
     let (local precise_a) = SWAP_UTIL_get_a_precise(self)
-    let (local d0) = SWAP_UTIL_get_d(precise_a, xp_len, xp_array)
+    let (local d0) = SWAP_UTIL_get_d(precise_a, xp_len, xp)
 
     #d1= d0- token_amount*d0/total_supply
     let (amount_d0_mul)=uint256_checked_mul(token_amount,d0)
     let (amount_total_div,_)=uint256_checked_div_rem(amount_d0_mul,total_supply)
     let (d1)=uint256_checked_sub_lt(d0,amount_total_div)
     
-    let scaled_token_amount=xp_array[token_index]
+    let scaled_token_amount=xp[token_index]
 
     let (available_condition)= uint256_le(token_amount,scaled_token_amount)
 
     with_attr error_message("withdraw exceeds available"):
         assert available_condition=1
     end
-    
-    #TODO complete loop
+    let (new_y)=SWAP_UTIL_get_yd(precise_a,token_index,xp_len, xp,d1)
 
-    return (0, 0, Uint256(0,0))
+    let (fee_per_token)= SWAP_UTIL_fee_per_token(self.swap_fee, xp_len)
+
+    let(xp_reducued_len,xp_reduced)=SWAP_UTIL_xp_reduced_loop(token_index, xp_len,xp, d0, d1,new_y,fee_per_token, xp_len)
+
+    let(y1)=SWAP_UTIL_get_yd(precise_a,token_index,xp_reducued_len, xp_reduced,d1)
+
+    let (dy)= uint256_checked_sub_le(xp_reduced[token_index], y1)
+    let (dy_1_sub)=uint256_checked_sub_le(dy,Uint256(1,0))
+
+    if token_index==0:
+        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token1_precision_with_multiplier)
+    end
+    if token_index==1:
+        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token2_precision_with_multiplier)
+    else:
+        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token3_precision_with_multiplier)
+    end
+
+
+     return(new_dy,new_y,xp[token_index])
 end
+
+func SWAP_UTIL_xp_reduced_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    token_index : felt, xp_len:felt,xp:Uint256*, d0:Uint256, d1:Uint256,new_y:Uint256,fee_per_token:Uint256, lenght:felt)->(
+    xp_reduced_len:felt, xp_reduced:Uint256*):
+
+
+    #TODO look for returning array in loop
+    #let ()=SWAP_UTIL_xp_reduced_loop(token_index, xp_len,xp,d0, d1,new_y,fee_per_token, lenght)
+    return(xp_len,xp)
+
+end
+
+
+func SWAP_UTIL_fee_per_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    swap_fee : felt, num_tokens:felt)->(
+    fee:felt):
+    let fee_tokens_mul= swap_fee*num_tokens
+    let division=(num_tokens-1)*4
+    let (fee)=unsigned_div_rem(fee_tokens_mul,division)
+    return (fee)
+end
+
 
 func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     precise_a : felt, token_index:felt,xp_len:felt,xp:Uint256*, d:Uint256)->(
@@ -421,7 +461,6 @@ func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_ch
         assert converge=1
     end
 
-   
     return(new_y)
 
 end 
