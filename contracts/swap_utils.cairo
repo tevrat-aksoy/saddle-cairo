@@ -27,7 +27,7 @@ from openzeppelin.security.safemath import (
 )
 
 from starkware.cairo.common.math_cmp import is_le
-from starkware.cairo.common.math import assert_le,assert_lt, unsigned_div_rem
+from starkware.cairo.common.math import assert_le,assert_lt, unsigned_div_rem,assert_not_equal
 
 from starkware.starknet.common.syscalls import get_block_number, get_block_timestamp
 from contracts.interfaces.IERC20_lp_token import IERC20_lp_token
@@ -275,6 +275,7 @@ func AMPLIFICATION_UTIL_ramp_a{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*,
     return (new_swap)
 end
 
+
 func AMPLIFICATION_UTIL_stop_ramp_a{
     syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
 }(self : SWAP_UTIL_swap)->(new_swap:SWAP_UTIL_swap):
@@ -312,6 +313,8 @@ func AMPLIFICATION_UTIL_stop_ramp_a{
     
 end
 
+
+
 func SWAP_UTIL_get_a_precise{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     self : SWAP_UTIL_swap
 ) -> (a_precise : felt):
@@ -323,7 +326,7 @@ end
 func SWAP_UTIL_calculate_withdraw_one_token{
     syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr
 }(self : SWAP_UTIL_swap, token_amount : Uint256, token_index : felt, number_of_tokens : felt) -> (
-    dy : felt, dy_swap_fee : felt
+    dy : Uint256, dy_swap_fee : Uint256
 ):
     alloc_locals
     let lp_token_address = self.lp_token_address
@@ -338,15 +341,19 @@ func SWAP_UTIL_calculate_withdraw_one_token{
         self, token_index, token_amount, total_supply, number_of_tokens
     )
     # TODO check for math
+    let  (local y_dif)=uint256_checked_sub_le(current_y,new_y)
     if token_index == 0:
-        local dy_swap_fee = ((current_y - new_y) / self.token1_precision_with_multiplier) - dy
+        let  (local y_multiplier_div,_)= uint256_checked_div_rem(y_dif, Uint256(self.token1_precision_with_multiplier,0))
+        let  (local  dy_swap_fee)= uint256_checked_sub_le(y_multiplier_div,dy)
         return (dy, dy_swap_fee)
     end
     if token_index == 1:
-        local dy_swap_fee = ((current_y - new_y) / self.token2_precision_with_multiplier) - dy
+        let  (local y_multiplier_div,_)= uint256_checked_div_rem(y_dif, Uint256(self.token2_precision_with_multiplier,0))
+        let  (local  dy_swap_fee)= uint256_checked_sub_le(y_multiplier_div,dy)
         return (dy, dy_swap_fee)
     else:
-        local dy_swap_fee = ((current_y - new_y) / self.token3_precision_with_multiplier) - dy
+        let  (local y_multiplier_div,_)= uint256_checked_div_rem(y_dif, Uint256(self.token3_precision_with_multiplier,0))
+        let  (local  dy_swap_fee)= uint256_checked_sub_le(y_multiplier_div,dy)
         return (dy, dy_swap_fee)
     end
 end
@@ -359,7 +366,7 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     token_amount : Uint256,
     total_supply : Uint256,
     number_of_tokens : felt,
-) -> (dy : felt, new_y : felt, xp_indexed: Uint256):
+) -> (dy : Uint256, new_y : Uint256, xp_indexed: Uint256):
     alloc_locals
     with_attr error_message("number_of_tokens must be in range 0-2"):
         assert_le(number_of_tokens, 3)
@@ -395,23 +402,25 @@ func SWAP_UTIL_calculate_withdraw_one_token_dy{
     let(y1)=SWAP_UTIL_get_yd(precise_a,token_index,xp_reducued_len, xp_reduced,d1)
 
     let (dy)= uint256_checked_sub_le(xp_reduced[token_index], y1)
-    let (dy_1_sub)=uint256_checked_sub_le(dy,Uint256(1,0))
+    let (local dy_1_sub)=uint256_checked_sub_le(dy,Uint256(1,0))
 
     if token_index==0:
-        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token1_precision_with_multiplier)
-    end
-    if token_index==1:
-        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token2_precision_with_multiplier)
+        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,Uint256( self.token1_precision_with_multiplier,0))
+        return(new_dy,new_y,xp[token_index])
     else:
-        let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,self.token3_precision_with_multiplier)
+        if token_index==1:
+            let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,Uint256( self.token2_precision_with_multiplier,0))
+            return(new_dy,new_y,xp[token_index])
+        else:
+            let (local new_dy,_)=uint256_checked_div_rem(dy_1_sub,Uint256( self.token3_precision_with_multiplier,0))
+            return(new_dy,new_y,xp[token_index])
+        end
     end
 
-
-     return(new_dy,new_y,xp[token_index])
 end
 
 func SWAP_UTIL_xp_reduced_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    token_index : felt, xp_len:felt,xp:Uint256*, d0:Uint256, d1:Uint256,new_y:Uint256,fee_per_token:Uint256, lenght:felt)->(
+    token_index : felt, xp_len:felt,xp:Uint256*, d0:Uint256, d1:Uint256,new_y:Uint256,fee_per_token:felt, lenght:felt)->(
     xp_reduced_len:felt, xp_reduced:Uint256*):
 
 
@@ -427,20 +436,19 @@ func SWAP_UTIL_fee_per_token{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, r
     fee:felt):
     let fee_tokens_mul= swap_fee*num_tokens
     let division=(num_tokens-1)*4
-    let (fee)=unsigned_div_rem(fee_tokens_mul,division)
+    let (fee,_)=unsigned_div_rem(fee_tokens_mul,division)
     return (fee)
 end
 
 
 func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
     precise_a : felt, token_index:felt,xp_len:felt,xp:Uint256*, d:Uint256)->(
-    new_y:Uint256):
+    new_y:Uint256): 
+    alloc_locals
 
-    with_attr error_message("token  notfound"):
+    with_attr error_message("token  not found"):
         assert_lt(token_index, 3)
     end
-
-    let (n_a)=uint256_checked_mul(d,Uint256(xp_len,0))
 
     let (c,s)=get_c_loop(d, xp_len, xp,token_index, d, xp_len)
 
@@ -452,7 +460,7 @@ func SWAP_UTIL_get_yd{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_ch
 
     let (d_a_mul)=uint256_checked_mul(d, Uint256( AMPLIFICATION_UTIL_A_PRECISION,0))
     let (d_a_mul_na_div,_)= uint256_checked_div_rem(d_a_mul,Uint256(n_a,0))
-    let (new_b)=uint256_checked_add(s,d_a_mul_na_div)
+    let (local new_b)=uint256_checked_add(s,d_a_mul_na_div)
     #TODO complete y loop
 
     let (new_y, converge)= get_newy_loop(d,new_c,new_b ,d, AMPLIFICATION_UTIL_A_PRECISION)
@@ -484,7 +492,7 @@ func get_newy_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check
         let (y_2_mul)= uint256_checked_mul(Uint256(2,0),y)
         let (b_d_sub)=uint256_checked_sub_le(b,d)
         let (y_bd_sum)=uint256_checked_add(y_2_mul,b_d_sub)
-        let (new_y)=uint256_checked_div_rem(y_c_add,y_bd_sum)
+        let (new_y,_)=uint256_checked_div_rem(y_c_add,y_bd_sum)
 
         let (y_dif) = uint256_sub(new_y, current_y)
         let (less_than_one) = uint256_le(y_dif, Uint256(1, 0))
@@ -669,3 +677,126 @@ func get_dp_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_p
 
     return (new_dp)
 end
+
+
+func SWAP_UTIL_get_virtual_price{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    self:SWAP_UTIL_swap)->(price:Uint256):
+    alloc_locals
+
+    let (local xp_len, xp)=SWAP_UTIL_xp(self)
+    let (a)=SWAP_UTIL_get_a_precise(self)
+    let (d)=SWAP_UTIL_get_d(a,xp_len,xp)
+
+    let token_address=self.lp_token_address
+    let (total_supply)=IERC20_lp_token.totalSupply(token_address)
+
+    let (supply_not_zero)=uint256_lt(total_supply,Uint256(0,0))
+
+    if supply_not_zero==1:
+        return (Uint256(0,0))
+    else:
+        #TODO check let prec_dec_pow=10**SWAP_UTIL_POOL_PRECISION_DECIMALS not working
+        let prec_dec_pow=10**18
+        let (d_precision_decimal_mul)=uint256_checked_mul(d,Uint256(prec_dec_pow,0))
+        let (price,_)=uint256_checked_div_rem(d_precision_decimal_mul,total_supply)
+        return(price)
+    end
+end 
+
+
+func SWAP_UTIL_calculate_swap{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    self:SWAP_UTIL_swap, token_index_from:felt, token_index_to:felt, dx:Uint256)->(
+    dy:Uint256):
+    alloc_locals
+
+    let (xp_len,xp)=SWAP_UTIL_xp(self)
+    with_attr error_message("cant swap same tokens"):
+        assert_not_equal(token_index_from,token_index_to)
+    end
+
+    with_attr error_message("token index out of range"):
+        assert_lt(token_index_from,xp_len)
+    end
+    with_attr error_message("token index out of range"):
+        assert_lt(token_index_to,xp_len)
+    end
+
+    if token_index_from==0:
+        let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token1_precision_with_multiplier,0))
+        let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+    else:
+        if token_index_from==1:
+            let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token2_precision_with_multiplier,0))
+            let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+        else:
+            let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token2_precision_with_multiplier,0))
+            let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+        end
+    end
+
+    #let (y)= SWAP_UTIL_get_y()
+
+    return(Uint256(0,0))
+end
+
+func SWAP_UTIL_get_y{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    precise_a:felt, token_index_from:felt, token_index_to:felt,x:Uint256, xp_len:felt,xp:Uint256* ,d:Uint256)->(
+    y:Uint256):
+    alloc_locals
+
+    with_attr error_message("cant compare token to itselt"):
+        assert_not_equal(token_index_from,token_index_to)
+    end
+    with_attr error_message("tokens must be in pool"):
+        assert_lt(token_index_from, xp_len)
+    end
+    with_attr error_message("tokens must be in pool"):
+        assert_lt(token_index_to, xp_len)
+    end
+
+    let (d)=SWAP_UTIL_get_d(precise_a,xp_len,xp)
+    let n_a=xp_len*precise_a
+    let (prev_c,s,_)=SWAP_UTIL_get_y_c_d_calculate_loop(token_index_from,token_index_to,xp_len,xp,x, d,Uint256(0,0),d,xp_len )
+
+    let (a_d_mul)=uint256_checked_mul(d,Uint256(precise_a,0))
+    let (c_d_a_mul)=uint256_checked_mul(a_d_mul,prev_c)
+    let na_num_tokens_mul=n_a*xp_len
+    let (new_c,_)=uint256_checked_div_rem(c_d_a_mul,Uint256( na_num_tokens_mul,0))
+
+    let (s_d_a_mul)=uint256_checked_mul(s,a_d_mul)
+    let (b,_)=uint256_checked_div_rem(s_d_a_mul,Uint256(n_a,0))
+
+    let (new_y, converge)= get_newy_loop(d,new_c,b ,d, AMPLIFICATION_UTIL_A_PRECISION)
+
+    with_attr error_message("y not converge"):
+        assert converge=1
+    end
+
+    return (new_y)
+end
+func SWAP_UTIL_get_y_c_d_calculate_loop{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    token_index_from:felt,token_index_to:felt,xp_len:felt,xp:Uint256*,x:Uint256,s:Uint256,c:Uint256,d:Uint256,lenght:felt)->(
+    new_c:Uint256,_new_s:Uint256,new_x:Uint256):
+    alloc_locals
+    if lenght==0:
+        return (Uint256(1,0),Uint256(0,0),Uint256(0,0))
+    end
+    let (prev_c,prev_s,prev_x)=SWAP_UTIL_get_y_c_d_calculate_loop(token_index_from,token_index_to,xp_len,xp,x,s,c,d,lenght-1)
+
+    if lenght-1==token_index_from:
+        local new_x:Uint256=x
+    else:
+        if lenght-1==token_index_to:
+            local new_x:Uint256=prev_x
+        else:
+            local new_x:Uint256=xp[lenght-1]
+        end
+    end
+    let (new_s)=uint256_checked_add(prev_s, new_x)
+    let (c_d_mul)=uint256_checked_mul(prev_c,d)
+    let (x_num_tokens_mul)=uint256_checked_mul(new_x, Uint256(xp_len,0))
+    let (new_c,_)=uint256_checked_div_rem(c_d_mul,x_num_tokens_mul)
+    return(new_c,new_s,prev_x)
+
+end
+
