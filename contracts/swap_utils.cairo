@@ -734,13 +734,31 @@ func SWAP_UTIL_calculate_swap{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
         end
     end
 
-    #let (y)= SWAP_UTIL_get_y()
+    let (precise_a)=SWAP_UTIL_get_a_precise(self)
+    let (prev_y)= SWAP_UTIL_get_y(precise_a,token_index_from,token_index_to,x,xp_len,xp)
 
-    return(Uint256(0,0))
+    let (xp_y_sub)=uint256_checked_sub_le(prev_y,xp[token_index_to])
+    let (dy)=uint256_checked_sub_le(Uint256(1,0),xp_y_sub)
+
+    let (dy_swap_mul)= uint256_checked_mul(dy,Uint256( self.swap_fee,0))
+    let (dy_fee,_)=uint256_checked_div_rem(dy_swap_mul,Uint256(SWAP_UTIL_FEE_DENOMINATOR))
+
+    let (dy_fee_sub)=uint256_checked_sub_le(dy_fee,dy)
+    if token_index_to==0:
+        local multiplier_to=self.token1_precision_with_multiplier
+    else:
+        if token_index_to==1:
+            local multiplier_to=self.token2_precision_with_multiplier
+        else:
+            local multiplier_to=self.token3_precision_with_multiplier
+        end
+    end
+    let (new_dy,_)=uint256_checked_div_rem(dy_fee_sub,Uint256(multiplier_to,0))
+    return(new_dy)
 end
 
 func SWAP_UTIL_get_y{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
-    precise_a:felt, token_index_from:felt, token_index_to:felt,x:Uint256, xp_len:felt,xp:Uint256* ,d:Uint256)->(
+    precise_a:felt, token_index_from:felt, token_index_to:felt,x:Uint256, xp_len:felt,xp:Uint256* )->(
     y:Uint256):
     alloc_locals
 
