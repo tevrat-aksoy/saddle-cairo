@@ -708,7 +708,6 @@ func SWAP_UTIL_calculate_swap{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
     self:SWAP_UTIL_swap, token_index_from:felt, token_index_to:felt, dx:Uint256)->(
     dy:Uint256):
     alloc_locals
-
     let (xp_len,xp)=SWAP_UTIL_xp(self)
     with_attr error_message("cant swap same tokens"):
         assert_not_equal(token_index_from,token_index_to)
@@ -721,20 +720,26 @@ func SWAP_UTIL_calculate_swap{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, 
         assert_lt(token_index_to,xp_len)
     end
 
+    let (precise_a)=SWAP_UTIL_get_a_precise(self)
+    
     if token_index_from==0:
         let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token1_precision_with_multiplier,0))
         let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+
     else:
         if token_index_from==1:
             let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token2_precision_with_multiplier,0))
             let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+
         else:
             let (local dx_multiplier)=uint256_checked_mul(dx,Uint256( self.token2_precision_with_multiplier,0))
             let (local x)= uint256_checked_add(dx_multiplier,xp[token_index_from] )
+
         end
     end
 
-    let (precise_a)=SWAP_UTIL_get_a_precise(self)
+    
+    
     let (prev_y)= SWAP_UTIL_get_y(precise_a,token_index_from,token_index_to,x,xp_len,xp)
 
     let (xp_y_sub)=uint256_checked_sub_le(prev_y,xp[token_index_to])
@@ -774,7 +779,8 @@ func SWAP_UTIL_get_y{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_che
 
     let (d)=SWAP_UTIL_get_d(precise_a,xp_len,xp)
     let n_a=xp_len*precise_a
-    let (prev_c,s,_)=SWAP_UTIL_get_y_c_d_calculate_loop(token_index_from,token_index_to,xp_len,xp,x, d,Uint256(0,0),d,xp_len )
+    local local_x=x
+    let (prev_c,s,_)=SWAP_UTIL_get_y_c_d_calculate_loop(token_index_from,token_index_to,xp_len,xp,local_x, d,Uint256(0,0),d,xp_len )
 
     let (a_d_mul)=uint256_checked_mul(d,Uint256(precise_a,0))
     let (c_d_a_mul)=uint256_checked_mul(a_d_mul,prev_c)
@@ -818,3 +824,34 @@ func SWAP_UTIL_get_y_c_d_calculate_loop{syscall_ptr : felt*, pedersen_ptr : Hash
 
 end
 
+
+
+func SWAP_UTIL_calculate_remove_liquidity{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    self:SWAP_UTIL_swap, amount:Uint256)->(
+    balance_len:felt, balance:Uint256*):
+    alloc_locals
+
+    let token_address=self.lp_token_address
+    let (total_supply)=IERC20_lp_token.totalSupply(token_address)
+
+    with_attr error_message("can not exceed total supply"):
+        uint256_le(amount, total_supply)
+    end
+
+    let (balance_amount_mul1)=uint256_checked_mul( self.token1_balance,amount)
+    let (new_amount1,_)=uint256_checked_div_rem(balance_amount_mul1, total_supply)
+
+    let (balance_amount_mul2)=uint256_checked_mul( self.token2_balance,amount)
+    let (new_amount2,_)=uint256_checked_div_rem(balance_amount_mul2, total_supply)
+
+    let (balance_amount_mul3)=uint256_checked_mul( self.token3_balance,amount)
+    let (new_amount3,_)=uint256_checked_div_rem(balance_amount_mul3, total_supply)
+
+    let (balances:Uint256*)=alloc()
+
+    assert [balances]=new_amount1
+    assert [balances+1]=new_amount2
+    assert[balances+2]=new_amount3
+    return(3, balances)
+
+end
