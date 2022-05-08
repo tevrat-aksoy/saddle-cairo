@@ -855,3 +855,37 @@ func SWAP_UTIL_calculate_remove_liquidity{syscall_ptr : felt*, pedersen_ptr : Ha
     return(3, balances)
 
 end
+
+func  SWAP_UTIL_calculate_token_amount{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+    self:SWAP_UTIL_swap, amount_len:felt, amounts:Uint256*,deposit:felt)->(
+    ):
+
+    let (a_preice)= SWAP_UTIL_get_a_precise(self)
+    let (balances:Uint256*)=alloc()
+
+    let(xp_len,xp)=SWAP_UTIL_xp(self)
+    let(d0)=SWAP_UTIL_get_d(a_preice,xp_len,xp)
+    
+    if deposit==1:
+        assert [balances]=uint256_checked_add( self.token1_balance,[amounts])
+        assert [balances]=uint256_checked_add( self.token1_balance,[amounts+1])
+        assert [balances]=uint256_checked_add( self.token1_balance,[amounts+2])
+
+    else:
+        assert [balances]=uint256_checked_sub_le([amounts], self.token1_balance,)
+        assert [balances]=uint256_checked_sub_le( [amounts+1], self.token2_balance)
+        assert [balances]=uint256_checked_sub_le( [amounts+2], self.token3_balance,)
+    end
+
+    #TODO
+    let(xp_new_len,xp_new)=SWAP_UTIL_xp(self)
+    let(d1)=SWAP_UTIL_get_d(a_preice,xp_new_len,xp_new)
+
+    let token_adress=self.lp_token_address
+    let(total_supply)=IERC20_lp_token.totalSupply(token_adress)
+
+
+    return()
+
+end
+
